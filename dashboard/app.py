@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 import logging
 import math
 import os
@@ -384,6 +386,134 @@ def _make_progression_chart(probs: Dict[str, List[float]], years: List[int]) -> 
 # ===================================================================
 
 
+
+def _generate_html_report(
+    patient: Dict[str, Any],
+    dr_grade: int,
+    confidence: float,
+    risk: Dict[str, Any],
+    prog: Dict[str, Any],
+    rec: Dict[str, Any],
+) -> str:
+    """Generate a clean, printable HTML clinical report."""
+    grade_labels = {
+        0: "No Diabetic Retinopathy (Grade 0)",
+        1: "Mild Non-Proliferative DR (Grade 1)",
+        2: "Moderate Non-Proliferative DR (Grade 2)",
+        3: "Severe Non-Proliferative DR (Grade 3)",
+        4: "Proliferative Diabetic Retinopathy (Grade 4)",
+    }
+    pid = patient.get("patient_id", "DEMO-001")
+    pname = patient.get("name", pid)
+    age = patient.get("age", "N/A")
+    gender = patient.get("gender", "N/A")
+    duration = patient.get("diabetes_duration_years", "N/A")
+    hba1c = patient.get("hba1c", "N/A")
+    glucose = patient.get("fasting_glucose_mg_dl", "N/A")
+    sbp = patient.get("systolic_bp", "N/A")
+    dbp = patient.get("diastolic_bp", "N/A")
+    bmi = patient.get("bmi", "N/A")
+    egfr = patient.get("egfr", "N/A")
+    adherence = patient.get("medication_adherence_pct", "N/A")
+    smoking = patient.get("smoking_status", "Never")
+
+    score = risk.get("total_score", 0.0)
+    category = risk.get("category", "Moderate")
+    interval = rec.get("screening_interval_months", 12)
+    urgency = rec.get("urgency", "Routine")
+    referral = rec.get("referral_type", "Ophthalmologist")
+    lifestyle = rec.get("lifestyle_recommendations", [])
+    lifestyle_items = "".join(f"<li>{tip}</li>" for tip in lifestyle)
+
+    badge_class = "badge-high" if urgency in ["Urgent", "Emergency", "Emergent"] else ("badge-mod" if urgency == "Priority" else "badge-low")
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Clinical Summary - {pname}</title>
+<style>
+    body {{ font-family: 'Segoe UI', Arial, sans-serif; margin: 30px 45px; color: #1e293b; background: #fff; line-height: 1.5; }}
+    .header {{ border-bottom: 3px solid #2563eb; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }}
+    .header h1 {{ margin: 0; color: #0f172a; font-size: 22px; }}
+    .header p {{ margin: 3px 0 0 0; color: #64748b; font-size: 13px; }}
+    .badge {{ display: inline-block; padding: 3px 10px; border-radius: 4px; font-weight: bold; font-size: 12px; }}
+    .badge-high {{ background: #fee2e2; color: #b91c1c; }}
+    .badge-mod {{ background: #fef3c7; color: #b45309; }}
+    .badge-low {{ background: #dcfce7; color: #15803d; }}
+    .section {{ margin-bottom: 20px; }}
+    .section-title {{ font-size: 15px; font-weight: 700; color: #1e40af; border-left: 4px solid #2563eb; padding-left: 8px; margin-bottom: 10px; }}
+    table {{ width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 13px; }}
+    th, td {{ padding: 7px 12px; text-align: left; border: 1px solid #e2e8f0; }}
+    th {{ background: #f8fafc; color: #475569; width: 30%; }}
+    .rec-box {{ background: #f0fdf4; border: 1px solid #86efac; border-radius: 6px; padding: 12px 16px; margin-top: 8px; }}
+    .footer {{ margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 10px; font-size: 11px; color: #94a3b8; text-align: center; }}
+    @media print {{ body {{ margin: 15px; }} .no-print {{ display: none; }} }}
+</style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <h1>🏥 Happiest Health — Digital Twin Clinical Report</h1>
+            <p>Diabetic Retinopathy Risk Assessment &amp; 5-Year Progression Simulation</p>
+        </div>
+        <div style="text-align: right;">
+            <p><b>Patient ID:</b> {pid}</p>
+            <p><b>Date:</b> {datetime.now().strftime('%d %B %Y')}</p>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">1. Patient Profile &amp; Clinical Biomarkers</div>
+        <table>
+            <tr><th>Patient Name</th><td>{pname}</td><th>Age / Gender</th><td>{age} yrs / {gender}</td></tr>
+            <tr><th>Diabetes Duration</th><td>{duration} years</td><th>Glycated Hemoglobin (HbA1c)</th><td>{hba1c}%</td></tr>
+            <tr><th>Fasting Glucose</th><td>{glucose} mg/dL</td><th>Blood Pressure</th><td>{sbp} / {dbp} mmHg</td></tr>
+            <tr><th>BMI</th><td>{bmi} kg/m²</td><th>Kidney Function (eGFR)</th><td>{egfr} mL/min/1.73m²</td></tr>
+            <tr><th>Medication Adherence</th><td>{adherence}%</td><th>Smoking Status</th><td>{smoking}</td></tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <div class="section-title">2. AI Fundus Retinal Evaluation</div>
+        <table>
+            <tr><th>Detected Retinopathy Grade</th><td><b>{grade_labels.get(dr_grade, 'Grade ' + str(dr_grade))}</b></td></tr>
+            <tr><th>Model Confidence</th><td>{confidence:.1%} (Pretrained EfficientNet-B3 Backbone)</td></tr>
+            <tr><th>Explainability Method</th><td>GradCAM visual attention overlay highlighting microvascular lesions</td></tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <div class="section-title">3. Digital Twin Risk Stratification &amp; Progression Forecast</div>
+        <table>
+            <tr><th>Composite Progression Risk Score</th><td><b>{score:.1f} / 100</b> ({category} Risk)</td></tr>
+            <tr><th>5-Year Progression Probability</th><td>{prog.get('probability_of_progression', 0):.1%} chance of worsening within 5 years</td></tr>
+            <tr><th>Projected Worst-Case Stage (95th %ile)</th><td>Grade {prog.get('worst_case_grade', dr_grade)}</td></tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <div class="section-title">4. Clinical Screening &amp; Action Plan</div>
+        <div class="rec-box">
+            <p style="margin: 0 0 6px 0;"><b>Recommended Screening Interval:</b> Every {interval} months</p>
+            <p style="margin: 0 0 6px 0;"><b>Referral Pathway:</b> {referral}</p>
+            <p style="margin: 0 0 6px 0;"><b>Urgency Level:</b> <span class="badge {badge_class}">{urgency}</span></p>
+            <p style="margin: 10px 0 4px 0;"><b>Lifestyle &amp; Management Recommendations:</b></p>
+            <ul style="margin: 0; padding-left: 20px;">
+                {lifestyle_items if lifestyle_items else '<li>Maintain optimal glycemic and blood pressure control.</li>'}
+            </ul>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>This report is generated by the AI-powered Diabetic Retinopathy Digital Twin Proof-of-Concept for research and clinical decision-support demonstration.<br>
+        Not for standalone diagnostic use without certified ophthalmologist validation.</p>
+    </div>
+</body>
+</html>"""
+    return html
+
+
 def main() -> None:  # noqa: C901 — dashboard wiring is inherently complex
     """Entry-point for the Streamlit DR Digital Twin dashboard."""
 
@@ -677,11 +807,44 @@ def main() -> None:  # noqa: C901 — dashboard wiring is inherently complex
         st.markdown("</div>", unsafe_allow_html=True)
 
     # ------------------------------------------------------------------
-    # Bottom — Clinical summary
+    # Bottom — Clinical summary & Report Generation
     # ------------------------------------------------------------------
     st.divider()
-    with st.expander("📄 Full Clinical Summary", expanded=False):
-        st.markdown(summary_text)
+
+    summary_head_col, download_col1, download_col2 = st.columns([2, 1, 1])
+    with summary_head_col:
+        st.markdown("### 📄 Clinical Summary & Report Generation")
+        st.caption("Export patient analysis report for clinical records, patient handover, or specialist referral.")
+
+    pid_str = patient.get("patient_id", "DEMO-001")
+    with download_col1:
+        st.download_button(
+            label="📥 Download Summary (.txt)",
+            data=summary_text,
+            file_name=f"clinical_summary_{pid_str}.txt",
+            mime="text/plain",
+            use_container_width=True,
+        )
+
+    with download_col2:
+        html_report = _generate_html_report(
+            patient=patient,
+            dr_grade=dr_grade,
+            confidence=grade_confidence,
+            risk=risk_result,
+            prog=progression,
+            rec=recommendation,
+        )
+        st.download_button(
+            label="🖨️ Printable Report (.html)",
+            data=html_report,
+            file_name=f"medical_report_{pid_str}.html",
+            mime="text/html",
+            use_container_width=True,
+        )
+
+    with st.expander("📄 View Full Clinical Summary", expanded=True):
+        st.code(summary_text, language="text")
 
     st.markdown(
         """
