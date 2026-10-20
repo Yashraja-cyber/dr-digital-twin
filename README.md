@@ -107,6 +107,12 @@ dr-digital-twin/
 │   ├── architecture.md                    # Detailed architecture docs
 │   └── clinical_rationale.md              # Clinical evidence & references
 │
+├── tests/
+│   └── test_core.py                       # Automated verification tests
+│
+├── assets/
+│   └── sample_fundus/                     # Sample fundus images for demo
+│
 └── data/                                  # (gitignored)
     ├── raw/                               # Downloaded datasets
     ├── processed/                         # Preprocessed images
@@ -123,7 +129,7 @@ dr-digital-twin/
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/dr-digital-twin.git
+git clone https://github.com/Yashraja-cyber/dr-digital-twin.git
 cd dr-digital-twin
 
 # Create virtual environment
