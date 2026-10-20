@@ -10,18 +10,18 @@ targeting the last convolutional layer of EfficientNet-B3.
 Reference: Selvaraju et al., "Grad-CAM: Visual Explanations from
 Deep Networks via Gradient-based Localization", ICCV 2017.
 """
-from __future__ import annotations
+from __future__ import annotations 
 
-import cv2
-import numpy as np
-import torch
-import torch.nn.functional as F
+import cv2 
+import numpy as np 
+import torch 
+import torch .nn .functional as F 
 
-from src.config import IMAGE_SIZE
-from src.data.preprocessing import preprocess_for_inference
+from src .config import IMAGE_SIZE 
+from src .data .preprocessing import preprocess_for_inference 
 
 
-class GradCAMExplainer:
+class GradCAMExplainer :
     """Generate GradCAM heatmaps for the DR grading model.
 
     Hooks into the last convolutional layer of EfficientNet-B3 to
@@ -33,49 +33,48 @@ class GradCAMExplainer:
         device: Computation device ('cpu' or 'cuda').
     """
 
-    def __init__(self, model, device: str = "cpu"):
-        self.model = model
-        self.device = device
-        self.activations = None
-        self.gradients = None
+    def __init__ (self ,model ,device :str ="cpu"):
+        self .model =model 
+        self .device =device 
+        self .activations =None 
+        self .gradients =None 
 
-        # Register hooks on the last convolutional block
-        # For EfficientNet-B3, this is backbone.conv_head
-        target_layer = self._find_target_layer()
-        target_layer.register_forward_hook(self._save_activation)
-        target_layer.register_full_backward_hook(self._save_gradient)
 
-    def _find_target_layer(self):
+        target_layer =self ._find_target_layer ()
+        target_layer .register_forward_hook (self ._save_activation )
+        target_layer .register_full_backward_hook (self ._save_gradient )
+
+    def _find_target_layer (self ):
         """Find the appropriate target layer for GradCAM.
 
         For timm's EfficientNet models, the best target is `conv_head`
         (the 1x1 conv after the last block). Falls back to the last
         block if conv_head is not available.
         """
-        if hasattr(self.model.backbone, "conv_head"):
-            return self.model.backbone.conv_head
-        # Fallback: last block in the features
-        if hasattr(self.model.backbone, "blocks"):
-            return self.model.backbone.blocks[-1]
-        raise AttributeError(
-            "Cannot find target convolutional layer for GradCAM. "
-            "Expected 'conv_head' or 'blocks' attribute on backbone."
+        if hasattr (self .model .backbone ,"conv_head"):
+            return self .model .backbone .conv_head 
+
+        if hasattr (self .model .backbone ,"blocks"):
+            return self .model .backbone .blocks [-1 ]
+        raise AttributeError (
+        "Cannot find target convolutional layer for GradCAM. "
+        "Expected 'conv_head' or 'blocks' attribute on backbone."
         )
 
-    def _save_activation(self, module, input_, output):
+    def _save_activation (self ,module ,input_ ,output ):
         """Forward hook to capture activations."""
-        self.activations = output.detach()
+        self .activations =output .detach ()
 
-    def _save_gradient(self, module, grad_input, grad_output):
+    def _save_gradient (self ,module ,grad_input ,grad_output ):
         """Backward hook to capture gradients."""
-        self.gradients = grad_output[0].detach()
+        self .gradients =grad_output [0 ].detach ()
 
-    def generate_heatmap(
-        self,
-        image: np.ndarray | str,
-        target_class: int | None = None,
-        image_size: int = IMAGE_SIZE,
-    ) -> tuple[np.ndarray, int, float]:
+    def generate_heatmap (
+    self ,
+    image :np .ndarray |str ,
+    target_class :int |None =None ,
+    image_size :int =IMAGE_SIZE ,
+    )->tuple [np .ndarray ,int ,float ]:
         """Generate a GradCAM heatmap for a fundus image.
 
         Args:
@@ -90,60 +89,60 @@ class GradCAMExplainer:
                 - predicted_class: The predicted DR grade
                 - confidence: Prediction confidence
         """
-        self.model.eval()
+        self .model .eval ()
 
-        # Preprocess
-        processed = preprocess_for_inference(image, size=image_size)
-        input_tensor = torch.from_numpy(processed).unsqueeze(0).to(self.device)
-        input_tensor.requires_grad_(True)
 
-        # Forward pass
-        logits = self.model(input_tensor)
-        probs = F.softmax(logits, dim=1)
+        processed =preprocess_for_inference (image ,size =image_size )
+        input_tensor =torch .from_numpy (processed ).unsqueeze (0 ).to (self .device )
+        input_tensor .requires_grad_ (True )
 
-        predicted_class = int(torch.argmax(probs, dim=1).item())
-        confidence = float(probs[0, predicted_class].item())
 
-        if target_class is None:
-            target_class = predicted_class
+        logits =self .model (input_tensor )
+        probs =F .softmax (logits ,dim =1 )
 
-        # Backward pass for the target class
-        self.model.zero_grad()
-        score = logits[0, target_class]
-        score.backward()
+        predicted_class =int (torch .argmax (probs ,dim =1 ).item ())
+        confidence =float (probs [0 ,predicted_class ].item ())
 
-        # Compute GradCAM
-        gradients = self.gradients[0]  # (C, H, W)
-        activations = self.activations[0]  # (C, H, W)
+        if target_class is None :
+            target_class =predicted_class 
 
-        # Global average pooling of gradients → channel weights
-        weights = torch.mean(gradients, dim=(1, 2))  # (C,)
 
-        # Weighted combination of activation maps
-        heatmap = torch.zeros(activations.shape[1:], device=self.device)
-        for i, w in enumerate(weights):
-            heatmap += w * activations[i]
+        self .model .zero_grad ()
+        score =logits [0 ,target_class ]
+        score .backward ()
 
-        # ReLU — we only want positive contributions
-        heatmap = F.relu(heatmap)
 
-        # Normalize to [0, 1]
-        heatmap = heatmap.cpu().numpy()
-        if heatmap.max() > 0:
-            heatmap = heatmap / heatmap.max()
+        gradients =self .gradients [0 ]
+        activations =self .activations [0 ]
 
-        # Resize to input image size
-        heatmap = cv2.resize(heatmap, (image_size, image_size))
 
-        return heatmap, predicted_class, confidence
+        weights =torch .mean (gradients ,dim =(1 ,2 ))
 
-    def overlay_on_image(
-        self,
-        original_image: np.ndarray,
-        heatmap: np.ndarray,
-        alpha: float = 0.4,
-        colormap: int = cv2.COLORMAP_JET,
-    ) -> np.ndarray:
+
+        heatmap =torch .zeros (activations .shape [1 :],device =self .device )
+        for i ,w in enumerate (weights ):
+            heatmap +=w *activations [i ]
+
+
+        heatmap =F .relu (heatmap )
+
+
+        heatmap =heatmap .cpu ().numpy ()
+        if heatmap .max ()>0 :
+            heatmap =heatmap /heatmap .max ()
+
+
+        heatmap =cv2 .resize (heatmap ,(image_size ,image_size ))
+
+        return heatmap ,predicted_class ,confidence 
+
+    def overlay_on_image (
+    self ,
+    original_image :np .ndarray ,
+    heatmap :np .ndarray ,
+    alpha :float =0.4 ,
+    colormap :int =cv2 .COLORMAP_JET ,
+    )->np .ndarray :
         """Overlay a GradCAM heatmap on the original fundus image.
 
         Args:
@@ -155,24 +154,24 @@ class GradCAMExplainer:
         Returns:
             BGR image with heatmap overlay.
         """
-        # Resize heatmap to match image dimensions
-        h, w = original_image.shape[:2]
-        heatmap_resized = cv2.resize(heatmap, (w, h))
 
-        # Convert to uint8 and apply colormap
-        heatmap_uint8 = np.uint8(255 * heatmap_resized)
-        heatmap_colored = cv2.applyColorMap(heatmap_uint8, colormap)
+        h ,w =original_image .shape [:2 ]
+        heatmap_resized =cv2 .resize (heatmap ,(w ,h ))
 
-        # Blend with original image
-        overlay = cv2.addWeighted(original_image, 1 - alpha, heatmap_colored, alpha, 0)
 
-        return overlay
+        heatmap_uint8 =np .uint8 (255 *heatmap_resized )
+        heatmap_colored =cv2 .applyColorMap (heatmap_uint8 ,colormap )
 
-    def get_attention_regions(
-        self,
-        heatmap: np.ndarray,
-        threshold: float = 0.5,
-    ) -> list[dict]:
+
+        overlay =cv2 .addWeighted (original_image ,1 -alpha ,heatmap_colored ,alpha ,0 )
+
+        return overlay 
+
+    def get_attention_regions (
+    self ,
+    heatmap :np .ndarray ,
+    threshold :float =0.5 ,
+    )->list [dict ]:
         """Extract high-attention regions from the heatmap.
 
         Identifies contiguous regions where the model's attention
@@ -189,32 +188,32 @@ class GradCAMExplainer:
                 - area: number of pixels
                 - max_attention: peak attention value in region
         """
-        # Threshold the heatmap
-        binary = (heatmap > threshold).astype(np.uint8)
 
-        # Find contours
-        contours, _ = cv2.findContours(
-            binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        binary =(heatmap >threshold ).astype (np .uint8 )
+
+
+        contours ,_ =cv2 .findContours (
+        binary ,cv2 .RETR_EXTERNAL ,cv2 .CHAIN_APPROX_SIMPLE 
         )
 
-        regions = []
-        for contour in contours:
-            area = cv2.contourArea(contour)
-            if area < 50:  # Skip tiny regions
-                continue
+        regions =[]
+        for contour in contours :
+            area =cv2 .contourArea (contour )
+            if area <50 :
+                continue 
 
-            x, y, w, h = cv2.boundingRect(contour)
-            mask = np.zeros_like(heatmap, dtype=np.uint8)
-            cv2.drawContours(mask, [contour], -1, 1, -1)
-            max_attention = float(np.max(heatmap * mask))
+            x ,y ,w ,h =cv2 .boundingRect (contour )
+            mask =np .zeros_like (heatmap ,dtype =np .uint8 )
+            cv2 .drawContours (mask ,[contour ],-1 ,1 ,-1 )
+            max_attention =float (np .max (heatmap *mask ))
 
-            regions.append({
-                "bbox": (int(x), int(y), int(w), int(h)),
-                "center": (int(x + w // 2), int(y + h // 2)),
-                "area": int(area),
-                "max_attention": max_attention,
+            regions .append ({
+            "bbox":(int (x ),int (y ),int (w ),int (h )),
+            "center":(int (x +w //2 ),int (y +h //2 )),
+            "area":int (area ),
+            "max_attention":max_attention ,
             })
 
-        # Sort by attention (highest first)
-        regions.sort(key=lambda r: r["max_attention"], reverse=True)
-        return regions
+
+        regions .sort (key =lambda r :r ["max_attention"],reverse =True )
+        return regions 

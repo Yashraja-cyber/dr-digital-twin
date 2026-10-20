@@ -4,14 +4,14 @@ Implements Ben Graham's preprocessing technique (Kaggle DR winner),
 CLAHE contrast enhancement, and circular cropping for robust
 handling of variable-quality portable fundus camera images.
 """
-from __future__ import annotations
+from __future__ import annotations 
 
-import cv2
-import numpy as np
-from PIL import Image
+import cv2 
+import numpy as np 
+from PIL import Image 
 
 
-def circle_crop(image: np.ndarray) -> np.ndarray:
+def circle_crop (image :np .ndarray )->np .ndarray :
     """Crop the fundus image to its circular region of interest.
 
     Detects the circular boundary of the fundus photograph and removes
@@ -23,33 +23,33 @@ def circle_crop(image: np.ndarray) -> np.ndarray:
     Returns:
         Cropped BGR image containing only the circular ROI.
     """
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    # Threshold to find the bright fundus region
-    _, thresh = cv2.threshold(gray, 10, 255, cv2.THRESH_BINARY)
+    gray =cv2 .cvtColor (image ,cv2 .COLOR_BGR2GRAY )
 
-    # Find contours and pick the largest one (the fundus circle)
-    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    if not contours:
-        return image
-
-    largest = max(contours, key=cv2.contourArea)
-    x, y, w, h = cv2.boundingRect(largest)
-
-    # Add small padding
-    pad = 5
-    x = max(0, x - pad)
-    y = max(0, y - pad)
-    w = min(image.shape[1] - x, w + 2 * pad)
-    h = min(image.shape[0] - y, h + 2 * pad)
-
-    return image[y : y + h, x : x + w]
+    _ ,thresh =cv2 .threshold (gray ,10 ,255 ,cv2 .THRESH_BINARY )
 
 
-def apply_clahe(
-    image: np.ndarray,
-    clip_limit: float = 2.0,
-    tile_grid_size: tuple[int, int] = (8, 8),
-) -> np.ndarray:
+    contours ,_ =cv2 .findContours (thresh ,cv2 .RETR_EXTERNAL ,cv2 .CHAIN_APPROX_SIMPLE )
+    if not contours :
+        return image 
+
+    largest =max (contours ,key =cv2 .contourArea )
+    x ,y ,w ,h =cv2 .boundingRect (largest )
+
+
+    pad =5 
+    x =max (0 ,x -pad )
+    y =max (0 ,y -pad )
+    w =min (image .shape [1 ]-x ,w +2 *pad )
+    h =min (image .shape [0 ]-y ,h +2 *pad )
+
+    return image [y :y +h ,x :x +w ]
+
+
+def apply_clahe (
+image :np .ndarray ,
+clip_limit :float =2.0 ,
+tile_grid_size :tuple [int ,int ]=(8 ,8 ),
+)->np .ndarray :
     """Apply Contrast Limited Adaptive Histogram Equalization (CLAHE).
 
     Enhances local contrast in the fundus image, which is critical for
@@ -64,24 +64,24 @@ def apply_clahe(
     Returns:
         Contrast-enhanced BGR image.
     """
-    # Convert to LAB color space — apply CLAHE only on the L (lightness) channel
-    lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
-    l_channel, a_channel, b_channel = cv2.split(lab)
 
-    clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_grid_size)
-    l_enhanced = clahe.apply(l_channel)
+    lab =cv2 .cvtColor (image ,cv2 .COLOR_BGR2LAB )
+    l_channel ,a_channel ,b_channel =cv2 .split (lab )
 
-    lab_enhanced = cv2.merge([l_enhanced, a_channel, b_channel])
-    return cv2.cvtColor(lab_enhanced, cv2.COLOR_LAB2BGR)
+    clahe =cv2 .createCLAHE (clipLimit =clip_limit ,tileGridSize =tile_grid_size )
+    l_enhanced =clahe .apply (l_channel )
+
+    lab_enhanced =cv2 .merge ([l_enhanced ,a_channel ,b_channel ])
+    return cv2 .cvtColor (lab_enhanced ,cv2 .COLOR_LAB2BGR )
 
 
-def ben_graham_preprocessing(
-    image: np.ndarray,
-    sigma: int = 30,
-    alpha: float = 4.0,
-    beta: float = -4.0,
-    gamma: int = 128,
-) -> np.ndarray:
+def ben_graham_preprocessing (
+image :np .ndarray ,
+sigma :int =30 ,
+alpha :float =4.0 ,
+beta :float =-4.0 ,
+gamma :int =128 ,
+)->np .ndarray :
     """Apply Ben Graham's preprocessing technique.
 
     This method, used by the winner of the Kaggle Diabetic Retinopathy
@@ -100,17 +100,17 @@ def ben_graham_preprocessing(
     Returns:
         Preprocessed BGR image with enhanced contrast.
     """
-    blurred = cv2.GaussianBlur(image, (0, 0), sigma)
-    enhanced = cv2.addWeighted(image, alpha, blurred, beta, gamma)
-    return enhanced
+    blurred =cv2 .GaussianBlur (image ,(0 ,0 ),sigma )
+    enhanced =cv2 .addWeighted (image ,alpha ,blurred ,beta ,gamma )
+    return enhanced 
 
 
-def preprocess_fundus(
-    image: np.ndarray,
-    size: int = 384,
-    apply_ben_graham: bool = True,
-    apply_clahe_enhancement: bool = True,
-) -> np.ndarray:
+def preprocess_fundus (
+image :np .ndarray ,
+size :int =384 ,
+apply_ben_graham :bool =True ,
+apply_clahe_enhancement :bool =True ,
+)->np .ndarray :
     """Full preprocessing pipeline for a single fundus image.
 
     Pipeline:
@@ -128,27 +128,27 @@ def preprocess_fundus(
     Returns:
         Preprocessed BGR image of shape (size, size, 3).
     """
-    # Step 1: Circle crop
-    image = circle_crop(image)
 
-    # Step 2: Ben Graham's preprocessing
-    if apply_ben_graham:
-        image = ben_graham_preprocessing(image)
-
-    # Step 3: CLAHE
-    if apply_clahe_enhancement:
-        image = apply_clahe(image)
-
-    # Step 4: Resize
-    image = cv2.resize(image, (size, size), interpolation=cv2.INTER_AREA)
-
-    return image
+    image =circle_crop (image )
 
 
-def load_and_preprocess(
-    image_path: str,
-    size: int = 384,
-) -> np.ndarray:
+    if apply_ben_graham :
+        image =ben_graham_preprocessing (image )
+
+
+    if apply_clahe_enhancement :
+        image =apply_clahe (image )
+
+
+    image =cv2 .resize (image ,(size ,size ),interpolation =cv2 .INTER_AREA )
+
+    return image 
+
+
+def load_and_preprocess (
+image_path :str ,
+size :int =384 ,
+)->np .ndarray :
     """Load an image from disk and apply the full preprocessing pipeline.
 
     Args:
@@ -162,16 +162,16 @@ def load_and_preprocess(
         FileNotFoundError: If the image file does not exist.
         ValueError: If the image cannot be loaded.
     """
-    image = cv2.imread(str(image_path))
-    if image is None:
-        raise ValueError(f"Failed to load image: {image_path}")
-    return preprocess_fundus(image, size=size)
+    image =cv2 .imread (str (image_path ))
+    if image is None :
+        raise ValueError (f"Failed to load image: {image_path}")
+    return preprocess_fundus (image ,size =size )
 
 
-def preprocess_for_inference(
-    image: np.ndarray | str,
-    size: int = 384,
-) -> np.ndarray:
+def preprocess_for_inference (
+image :np .ndarray |str ,
+size :int =384 ,
+)->np .ndarray :
     """Preprocess a fundus image and convert to model-ready tensor format.
 
     Returns a float32 numpy array in CHW format with ImageNet normalization,
@@ -184,21 +184,21 @@ def preprocess_for_inference(
     Returns:
         Float32 array of shape (3, size, size) with ImageNet normalization.
     """
-    if isinstance(image, str):
-        image = load_and_preprocess(image, size=size)
-    else:
-        image = preprocess_fundus(image, size=size)
+    if isinstance (image ,str ):
+        image =load_and_preprocess (image ,size =size )
+    else :
+        image =preprocess_fundus (image ,size =size )
 
-    # BGR → RGB
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-    # Normalize to [0, 1] then apply ImageNet stats
-    image = image.astype(np.float32) / 255.0
-    mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
-    std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
-    image = (image - mean) / std
+    image =cv2 .cvtColor (image ,cv2 .COLOR_BGR2RGB )
 
-    # HWC → CHW
-    image = np.transpose(image, (2, 0, 1))
 
-    return image
+    image =image .astype (np .float32 )/255.0 
+    mean =np .array ([0.485 ,0.456 ,0.406 ],dtype =np .float32 )
+    std =np .array ([0.229 ,0.224 ,0.225 ],dtype =np .float32 )
+    image =(image -mean )/std 
+
+
+    image =np .transpose (image ,(2 ,0 ,1 ))
+
+    return image 
