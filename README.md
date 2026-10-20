@@ -110,6 +110,8 @@ This project is licensed under the permissive **MIT License**.
 
 ## 📐 Architecture Diagram in PDF/PPT Format
 
+![Diabetic Retinopathy Digital Twin System Architecture](docs/architecture_diagram.png)
+
 * **PDF Document:** [**docs/architecture_diagram.pdf**](docs/architecture_diagram.pdf)
 * **Summary:** High-resolution diagram detailing the 4-tier pipeline: Data Ingestion Layer $\rightarrow$ Vision AI & Explainability $\rightarrow$ Digital Twin Engine $\rightarrow$ Clinical Presentation UI.
 
