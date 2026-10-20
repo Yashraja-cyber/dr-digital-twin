@@ -1,14 +1,3 @@
-"""Streamlit dashboard for the DR Digital Twin system.
-
-Provides an interactive, visually rich interface for clinicians and
-hackathon judges to explore diabetic retinopathy risk assessment,
-progression forecasting, wearable data analytics, and fundus image
-grading — all driven by a patient-specific digital twin.
-
-Launch with:
-    ``streamlit run dashboard/app.py``  (from the project root)
-"""
-
 from __future__ import annotations
 
 import logging
