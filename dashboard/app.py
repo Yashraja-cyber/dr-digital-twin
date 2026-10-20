@@ -439,26 +439,24 @@ def main() -> None:  # noqa: C901 — dashboard wiring is inherently complex
     # ------------------------------------------------------------------
     # Assemble patient record
     # ------------------------------------------------------------------
-    patient = generate_patient(
-        patient_id=patient_name if patient_name else "DEMO-001",
-        overrides={
-            "name": patient_name,
-            "age": age,
-            "gender": gender,
-            "diabetes_duration_years": diabetes_duration,
-            "hba1c": hba1c,
-            "fasting_glucose_mg_dl": fasting_glucose,
-            "systolic_bp": systolic_bp,
-            "diastolic_bp": diastolic_bp,
-            "bmi": bmi,
-            "egfr": egfr,
-            "egfr_ml_min": egfr,
-            "medication_adherence": med_adherence,
-            "medication_adherence_pct": med_adherence,
-            "smoking_status": smoking,
-            "smoking": smoking in ["Current", "Former"],
-        },
-    )
+    patient = generate_patient(patient_name if patient_name else 'DEMO-001')
+    patient.update({
+        'name': patient_name,
+        'age': age,
+        'gender': gender,
+        'diabetes_duration_years': diabetes_duration,
+        'hba1c': hba1c,
+        'fasting_glucose_mg_dl': fasting_glucose,
+        'systolic_bp': systolic_bp,
+        'diastolic_bp': diastolic_bp,
+        'bmi': bmi,
+        'egfr': egfr,
+        'egfr_ml_min': egfr,
+        'medication_adherence': med_adherence,
+        'medication_adherence_pct': med_adherence,
+        'smoking_status': smoking,
+        'smoking': smoking in ['Current', 'Former'],
+    })
 
     # ------------------------------------------------------------------
     # Run analysis gate
