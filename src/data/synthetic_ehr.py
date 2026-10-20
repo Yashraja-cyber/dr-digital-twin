@@ -292,8 +292,9 @@ _CLAMP_RANGES: dict[str, tuple[float, float]] = {
 
 
 def generate_patient(
-    patient_id: str,
+    patient_id: str = "P-0001",
     dr_grade: int | None = None,
+    overrides: dict[str, Any] | None = None,
     *,
     rng: Generator | None = None,
 ) -> dict[str, Any]:
@@ -306,6 +307,8 @@ def generate_patient(
     dr_grade:
         Diabetic Retinopathy severity grade (0–4).  If *None*, a grade is
         sampled from the population distribution.
+    overrides:
+        Optional dictionary of field values to override (e.g. from UI sliders).
     rng:
         Optional :class:`numpy.random.Generator` for reproducibility.
 
@@ -371,6 +374,12 @@ def generate_patient(
         "dr_grade": dr_grade,
         "dr_grade_label": DR_GRADE_LABELS[dr_grade],
     }
+    if overrides:
+        for k, v in overrides.items():
+            if v is not None:
+                record[k] = v
+        if "dr_grade" in overrides and overrides["dr_grade"] in DR_GRADE_LABELS:
+            record["dr_grade_label"] = DR_GRADE_LABELS[overrides["dr_grade"]]
     return record
 
 

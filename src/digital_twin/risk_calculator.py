@@ -227,9 +227,12 @@ class RiskCalculator:
         )
 
         # --- Lifestyle composite (BMI + smoking) -------------------------
+        smoking_val = patient_data.get("smoking")
+        if smoking_val is None:
+            smoking_val = patient_data.get("smoking_status", False)
         raw = self._score_lifestyle(
             bmi=patient_data.get("bmi", 25.0),
-            smoking=patient_data.get("smoking", False),
+            smoking=smoking_val,
         )
         breakdown["lifestyle"] = self._entry(raw, weights["lifestyle"])
 
@@ -323,7 +326,7 @@ class RiskCalculator:
         return grade_map.get(int(grade), 1.0)
 
     @staticmethod
-    def _score_lifestyle(bmi: float, smoking: bool) -> float:
+    def _score_lifestyle(bmi: float, smoking: Any) -> float:
         """Compute a combined lifestyle risk factor (0-1).
 
         BMI contribution (70 % of lifestyle weight):
@@ -333,8 +336,9 @@ class RiskCalculator:
         - ≥35       → 1.0 (obese II+)
 
         Smoking contribution (30 % of lifestyle weight):
-        - True → 1.0
-        - False → 0.0
+        - Current/True → 1.0
+        - Former       → 0.4
+        - Never/False  → 0.0
         """
         if bmi < 25.0:
             bmi_risk = 0.0
@@ -345,7 +349,11 @@ class RiskCalculator:
         else:
             bmi_risk = 1.0
 
-        smoking_risk = 1.0 if smoking else 0.0
+        if isinstance(smoking, str):
+            s = smoking.strip().lower()
+            smoking_risk = 1.0 if s == "current" else (0.4 if s == "former" else 0.0)
+        else:
+            smoking_risk = 1.0 if bool(smoking) else 0.0
         return 0.7 * bmi_risk + 0.3 * smoking_risk
 
     @staticmethod
