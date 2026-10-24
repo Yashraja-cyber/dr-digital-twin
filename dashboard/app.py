@@ -38,263 +38,228 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 DR_GRADE_LABELS: Dict[int, str] = {
-    0: "No DR",
-    1: "Mild NPDR",
-    2: "Moderate NPDR",
-    3: "Severe NPDR",
-    4: "Proliferative DR",
+    0: "No Apparent DR (Grade 0)",
+    1: "Mild Non-Proliferative DR (Grade 1)",
+    2: "Moderate Non-Proliferative DR (Grade 2)",
+    3: "Severe Non-Proliferative DR (Grade 3)",
+    4: "Proliferative Diabetic Retinopathy (Grade 4)",
 }
 
 DR_GRADE_COLORS: Dict[int, str] = {
-    0: "#10b981",
-    1: "#f59e0b",
-    2: "#f97316",
-    3: "#ef4444",
-    4: "#b91c1c",
+    0: "#16a34a",
+    1: "#d97706",
+    2: "#ea580c",
+    3: "#dc2626",
+    4: "#991b1b",
 }
 
 CHECKPOINT_PATH = os.path.join(_PROJECT_ROOT, "models", "best_model.pth")
 SAMPLE_FUNDUS_PATHS = {
-    "Grade 0 (Normal Retina)": os.path.join(_PROJECT_ROOT, "assets", "sample_fundus", "sample_grade0_normal.png"),
-    "Grade 2 (Moderate NPDR)": os.path.join(_PROJECT_ROOT, "assets", "sample_fundus", "sample_grade2_moderate.png"),
-    "Grade 4 (Severe Proliferative DR)": os.path.join(_PROJECT_ROOT, "assets", "sample_fundus", "sample_grade4_severe.png"),
+    "Grade 0: Normal Fundus": os.path.join(_PROJECT_ROOT, "assets", "sample_fundus", "sample_grade0_normal.png"),
+    "Grade 2: Moderate NPDR": os.path.join(_PROJECT_ROOT, "assets", "sample_fundus", "sample_grade2_moderate.png"),
+    "Grade 4: Proliferative DR": os.path.join(_PROJECT_ROOT, "assets", "sample_fundus", "sample_grade4_severe.png"),
 }
 ARCHITECTURE_DIAGRAM_PATH = os.path.join(_PROJECT_ROOT, "docs", "architecture_diagram.png")
 
 st.set_page_config(
-    page_title="DR Digital Twin | AI Clinical Decision Support",
-    page_icon="🏥",
+    page_title="Diabetic Retinopathy Digital Twin | CDSS",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 _CUSTOM_CSS = """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
 
 html, body, [class*="css"] {
-    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    color: #e2e8f0;
 }
 
 [data-testid="stAppViewContainer"] {
-    background: radial-gradient(circle at 10% 20%, #0f172a 0%, #090d16 90%);
+    background-color: #0d131a;
     color: #e2e8f0;
 }
 
 [data-testid="stSidebar"] {
-    background-color: #0b1120;
-    border-right: 1px solid #1e293b;
+    background-color: #090e14;
+    border-right: 1px solid #1c2633;
 }
 
-.hero-container {
-    background: linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 41, 59, 0.6) 100%);
-    border: 1px solid rgba(56, 189, 248, 0.2);
-    border-radius: 18px;
-    padding: 26px 32px;
-    margin-bottom: 24px;
-    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5), 0 0 20px rgba(56, 189, 248, 0.08);
-    position: relative;
-    overflow: hidden;
+.clinical-header {
+    background-color: #121924;
+    border: 1px solid #1e2b3c;
+    border-left: 4px solid #2563eb;
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
 }
 
-.hero-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    background: rgba(56, 189, 248, 0.12);
-    border: 1px solid rgba(56, 189, 248, 0.35);
-    padding: 4px 14px;
-    border-radius: 9999px;
-    font-size: 0.82rem;
+.system-badge {
+    display: inline-block;
+    background-color: #1a2636;
+    border: 1px solid #293a52;
+    color: #93c5fd;
+    font-size: 0.72rem;
     font-weight: 700;
-    color: #38bdf8;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
-    margin-bottom: 12px;
+    padding: 3px 10px;
+    border-radius: 4px;
+    margin-bottom: 8px;
 }
 
-.hero-title {
-    font-size: 2.25rem;
-    font-weight: 800;
-    background: linear-gradient(135deg, #f8fafc 20%, #38bdf8 70%, #818cf8 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+.clinical-title {
+    font-size: 1.85rem;
+    font-weight: 700;
+    color: #f8fafc;
     margin: 0;
-    line-height: 1.2;
+    letter-spacing: -0.01em;
 }
 
-.hero-desc {
+.clinical-desc {
     color: #94a3b8;
-    font-size: 1.02rem;
-    max-width: 820px;
-    margin-top: 8px;
-    line-height: 1.6;
+    font-size: 0.92rem;
+    margin-top: 6px;
+    line-height: 1.5;
+    max-width: 960px;
 }
 
-.kpi-card {
-    background: linear-gradient(135deg, #111827 0%, #0d1527 100%);
-    border: 1px solid #1f2937;
-    border-radius: 14px;
-    padding: 16px 20px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    transition: transform 0.2s ease, border-color 0.2s ease;
+.kpi-container {
+    background-color: #121924;
+    border: 1px solid #1e2b3c;
+    border-radius: 6px;
+    padding: 14px 18px;
+    height: 100%;
 }
-.kpi-card:hover {
-    transform: translateY(-2px);
-    border-color: rgba(56, 189, 248, 0.4);
-}
-.kpi-title {
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: #94a3b8;
+.kpi-label {
+    font-size: 0.72rem;
     font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #64748b;
     margin-bottom: 4px;
 }
 .kpi-value {
-    font-size: 1.55rem;
-    font-weight: 800;
+    font-size: 1.45rem;
+    font-weight: 700;
     color: #f1f5f9;
     line-height: 1.2;
 }
-.kpi-sub {
-    font-size: 0.82rem;
-    color: #38bdf8;
+.kpi-subtext {
+    font-size: 0.78rem;
+    color: #94a3b8;
     margin-top: 4px;
-    font-weight: 500;
 }
 
 .panel-card {
-    background: #0f172a;
-    border: 1px solid #1e293b;
-    border-radius: 16px;
-    padding: 22px;
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
-    margin-bottom: 20px;
-    transition: border-color 0.2s ease;
-}
-.panel-card:hover {
-    border-color: #334155;
+    background-color: #121924;
+    border: 1px solid #1e2b3c;
+    border-radius: 8px;
+    padding: 18px 20px;
+    margin-bottom: 18px;
 }
 
 .panel-header {
     display: flex;
-    align-items: center;
     justify-content: space-between;
-    margin-bottom: 16px;
-    border-bottom: 1px solid #1e293b;
-    padding-bottom: 12px;
+    align-items: center;
+    border-bottom: 1px solid #1e2b3c;
+    padding-bottom: 10px;
+    margin-bottom: 14px;
 }
 .panel-title {
-    font-size: 1.15rem;
-    font-weight: 700;
-    color: #38bdf8;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 0;
-}
-.panel-tag {
-    background: rgba(56, 189, 248, 0.1);
-    border: 1px solid rgba(56, 189, 248, 0.25);
-    color: #38bdf8;
-    font-size: 0.72rem;
-    font-weight: 600;
-    padding: 2px 8px;
-    border-radius: 6px;
-}
-
-.dr-badge-container {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 18px;
-    border-radius: 12px;
-    margin: 10px 0;
-    font-weight: 700;
-    font-size: 1.05rem;
-    letter-spacing: 0.3px;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-}
-
-.rec-container {
-    background: linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.7) 100%);
-    border-left: 4px solid #38bdf8;
-    border-radius: 12px;
-    padding: 16px 20px;
-    margin-top: 14px;
-}
-.rec-title {
-    font-size: 1.02rem;
-    font-weight: 700;
-    color: #7dd3fc;
-    margin: 0 0 10px 0;
-}
-.rec-row {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    font-size: 0.92rem;
-    color: #cbd5e1;
-    margin: 6px 0;
-}
-
-.action-pill {
-    display: inline-block;
-    padding: 3px 10px;
-    border-radius: 9999px;
-    font-size: 0.75rem;
+    font-size: 0.98rem;
     font-weight: 700;
     text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #cbd5e1;
+    margin: 0;
 }
-.action-routine { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
-.action-priority { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
-.action-urgent { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
-.action-emergent { background: rgba(185, 28, 28, 0.25); color: #fca5a5; border: 1px solid rgba(185, 28, 28, 0.5); }
-
-.delta-good {
-    color: #34d399;
-    font-weight: 700;
-}
-.delta-neutral {
-    color: #94a3b8;
+.panel-meta {
+    font-size: 0.72rem;
     font-weight: 600;
+    color: #64748b;
+    background-color: #0d131a;
+    border: 1px solid #1e2b3c;
+    padding: 2px 8px;
+    border-radius: 4px;
 }
+
+.grade-badge {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    margin: 8px 0;
+    border-width: 1px;
+    border-style: solid;
+}
+
+.protocol-box {
+    background-color: #0d131a;
+    border: 1px solid #1e2b3c;
+    border-left: 3px solid #2563eb;
+    border-radius: 4px;
+    padding: 14px 16px;
+    margin-top: 12px;
+}
+.protocol-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.86rem;
+    padding: 5px 0;
+    border-bottom: 1px solid #151d28;
+    color: #cbd5e1;
+}
+.protocol-row:last-child {
+    border-bottom: none;
+}
+.protocol-key {
+    color: #94a3b8;
+    font-weight: 500;
+}
+.protocol-val {
+    font-weight: 600;
+    color: #f1f5f9;
+}
+
+.triage-routine { color: #16a34a; font-weight: 700; }
+.triage-priority { color: #d97706; font-weight: 700; }
+.triage-urgent { color: #dc2626; font-weight: 700; }
+.triage-emergent { color: #991b1b; font-weight: 700; }
 
 button[data-baseweb="tab"] {
-    font-size: 0.95rem;
+    font-size: 0.88rem;
     font-weight: 600;
-    padding: 10px 22px;
-    border-radius: 8px;
+    padding: 8px 18px;
+    border-radius: 4px;
     color: #94a3b8;
-    transition: all 0.2s ease;
 }
 button[data-baseweb="tab"][aria-selected="true"] {
-    background: rgba(56, 189, 248, 0.15) !important;
-    color: #38bdf8 !important;
-    border-bottom: 2px solid #38bdf8 !important;
+    background-color: #1a2536 !important;
+    color: #93c5fd !important;
+    border-bottom: 2px solid #2563eb !important;
 }
 
 [data-testid="stMetric"] {
-    background: #0f172a;
-    border: 1px solid #1e293b;
-    border-radius: 12px;
-    padding: 12px 16px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+    background-color: #0d131a;
+    border: 1px solid #1e2b3c;
+    border-radius: 6px;
+    padding: 10px 14px;
 }
 
-.disclaimer-card {
-    background: rgba(15, 23, 42, 0.6);
-    border: 1px solid #1e293b;
-    border-radius: 12px;
-    padding: 16px 20px;
-    margin-top: 30px;
-    font-size: 0.85rem;
+.disclaimer-box {
+    background-color: #0f1622;
+    border: 1px solid #1e2b3c;
+    border-radius: 6px;
+    padding: 14px 18px;
+    font-size: 0.8rem;
     color: #64748b;
-    line-height: 1.6;
+    line-height: 1.5;
+    margin-top: 24px;
 }
 </style>
 """
@@ -317,18 +282,13 @@ def _estimate_dr_grade_from_ehr(hba1c: float, duration: float) -> int:
 def _grade_badge_html(grade: int) -> str:
     color = DR_GRADE_COLORS.get(grade, "#64748b")
     label = DR_GRADE_LABELS.get(grade, "Unknown")
-    text_color = "#ffffff" if grade in [2, 3, 4] else "#0f172a"
-    return (
-        f'<div class="dr-badge-container" style="background:{color}; color:{text_color};">'
-        f'<span>👁️ Retinopathy Classification:</span>'
-        f'<span>Grade {grade} — {label}</span>'
-        f'</div>'
-    )
+    bg_style = f"background-color: {color}22; border-color: {color}; color: #f8fafc;"
+    return f'<div class="grade-badge" style="{bg_style}">Classification: Grade {grade} — {label}</div>'
 
 
 def _build_confidence_bar(confidence: float) -> None:
     pct = int(round(confidence * 100))
-    st.caption(f"Confidence score: **{pct}%** (Deep Convolutional Vision Classifier)")
+    st.caption(f"Classifier Posterior Probability: {pct}%")
     st.progress(min(confidence, 1.0))
 
 
@@ -336,37 +296,37 @@ _PLOTLY_LAYOUT_DEFAULTS: Dict[str, Any] = dict(
     template="plotly_dark",
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
-    margin=dict(l=35, r=20, t=35, b=35),
-    font=dict(family="Plus Jakarta Sans, Segoe UI, sans-serif", size=12, color="#94a3b8"),
+    margin=dict(l=35, r=20, t=30, b=35),
+    font=dict(family="Inter, -apple-system, sans-serif", size=11, color="#94a3b8"),
 )
 
 
-def _make_gauge_chart(risk_score: float, title: str = "Progression Risk Score") -> go.Figure:
+def _make_gauge_chart(risk_score: float, title: str = "Composite Progression Risk Index") -> go.Figure:
     fig = go.Figure(
         go.Indicator(
             mode="gauge+number",
             value=risk_score,
-            number={"suffix": "%", "font": {"size": 42, "color": "#f8fafc"}},
-            title={"text": title, "font": {"size": 14, "color": "#94a3b8"}},
+            number={"suffix": "%", "font": {"size": 36, "color": "#f8fafc"}},
+            title={"text": title, "font": {"size": 13, "color": "#94a3b8"}},
             gauge={
-                "axis": {"range": [0, 100], "tickcolor": "#475569", "tickwidth": 1},
-                "bar": {"color": "#38bdf8", "thickness": 0.28},
-                "bgcolor": "#1e293b",
+                "axis": {"range": [0, 100], "tickcolor": "#334155", "tickwidth": 1},
+                "bar": {"color": "#2563eb", "thickness": 0.25},
+                "bgcolor": "#131b26",
                 "steps": [
-                    {"range": [0, 25], "color": "rgba(16, 185, 129, 0.4)"},
-                    {"range": [25, 50], "color": "rgba(245, 158, 11, 0.4)"},
-                    {"range": [50, 75], "color": "rgba(239, 68, 68, 0.4)"},
-                    {"range": [75, 100], "color": "rgba(185, 28, 28, 0.55)"},
+                    {"range": [0, 25], "color": "rgba(22, 163, 74, 0.25)"},
+                    {"range": [25, 50], "color": "rgba(217, 119, 6, 0.25)"},
+                    {"range": [50, 75], "color": "rgba(220, 38, 38, 0.25)"},
+                    {"range": [75, 100], "color": "rgba(153, 27, 27, 0.35)"},
                 ],
                 "threshold": {
-                    "line": {"color": "#f8fafc", "width": 3},
-                    "thickness": 0.8,
+                    "line": {"color": "#f8fafc", "width": 2},
+                    "thickness": 0.75,
                     "value": risk_score,
                 },
             },
         )
     )
-    fig.update_layout(**_PLOTLY_LAYOUT_DEFAULTS, height=270)
+    fig.update_layout(**_PLOTLY_LAYOUT_DEFAULTS, height=250)
     return fig
 
 
@@ -383,24 +343,24 @@ def _make_radar_chart(factor_scores: Dict[str, float]) -> go.Figure:
             r=values_closed,
             theta=categories_closed,
             fill="toself",
-            fillcolor="rgba(56, 189, 248, 0.22)",
-            line=dict(color="#38bdf8", width=2),
-            marker=dict(size=6, color="#7dd3fc"),
+            fillcolor="rgba(37, 99, 235, 0.16)",
+            line=dict(color="#2563eb", width=1.8),
+            marker=dict(size=4, color="#3b82f6"),
             name="Risk Factors",
         )
     )
     fig.update_layout(
         **_PLOTLY_LAYOUT_DEFAULTS,
-        height=300,
+        height=280,
         polar=dict(
             bgcolor="rgba(0,0,0,0)",
             radialaxis=dict(
                 visible=True,
                 range=[0, 100],
-                gridcolor="#334155",
+                gridcolor="#1e2b3c",
                 tickfont=dict(size=9, color="#64748b"),
             ),
-            angularaxis=dict(gridcolor="#334155", tickfont=dict(size=11, color="#cbd5e1")),
+            angularaxis=dict(gridcolor="#1e2b3c", tickfont=dict(size=10, color="#94a3b8")),
         ),
         showlegend=False,
     )
@@ -417,7 +377,7 @@ def _make_cgm_chart(timestamps: List[Any], glucose_values: List[float]) -> go.Fi
         x1=x_range[1],
         y0=30,
         y1=70,
-        fillcolor="rgba(239, 68, 68, 0.12)",
+        fillcolor="rgba(220, 38, 38, 0.08)",
         line_width=0,
         layer="below",
     )
@@ -427,7 +387,7 @@ def _make_cgm_chart(timestamps: List[Any], glucose_values: List[float]) -> go.Fi
         x1=x_range[1],
         y0=70,
         y1=180,
-        fillcolor="rgba(16, 185, 129, 0.14)",
+        fillcolor="rgba(22, 163, 74, 0.08)",
         line_width=0,
         layer="below",
     )
@@ -437,25 +397,25 @@ def _make_cgm_chart(timestamps: List[Any], glucose_values: List[float]) -> go.Fi
         x1=x_range[1],
         y0=250,
         y1=420,
-        fillcolor="rgba(239, 68, 68, 0.12)",
+        fillcolor="rgba(220, 38, 38, 0.08)",
         line_width=0,
         layer="below",
     )
 
     for yval, label, color in [
-        (70, "Hypo Threshold (70)", "#ef4444"),
-        (180, "Hyper Threshold (180)", "#10b981"),
-        (250, "Critical High (250)", "#dc2626"),
+        (70, "Hypoglycemia (<70 mg/dL)", "#dc2626"),
+        (180, "Target Upper Bound (180 mg/dL)", "#16a34a"),
+        (250, "Severe Hyperglycemia (>250 mg/dL)", "#991b1b"),
     ]:
         fig.add_hline(
             y=yval,
-            line_dash="dot",
+            line_dash="dash",
             line_color=color,
-            opacity=0.6,
+            opacity=0.55,
             annotation_text=label,
             annotation_position="top left",
             annotation_font_color=color,
-            annotation_font_size=10,
+            annotation_font_size=9,
         )
 
     fig.add_trace(
@@ -463,7 +423,7 @@ def _make_cgm_chart(timestamps: List[Any], glucose_values: List[float]) -> go.Fi
             x=timestamps,
             y=glucose_values,
             mode="lines",
-            line=dict(color="#38bdf8", width=1.8),
+            line=dict(color="#2563eb", width=1.6),
             name="Sensor Glucose",
             hovertemplate="Time: %{x}<br>Glucose: <b>%{y:.0f} mg/dL</b><extra></extra>",
         )
@@ -471,22 +431,22 @@ def _make_cgm_chart(timestamps: List[Any], glucose_values: List[float]) -> go.Fi
 
     fig.update_layout(
         **_PLOTLY_LAYOUT_DEFAULTS,
-        height=320,
-        xaxis=dict(title="Timeline", gridcolor="#1e293b", showgrid=True),
-        yaxis=dict(title="Interstitial Glucose (mg/dL)", range=[30, 420], gridcolor="#1e293b", showgrid=True),
+        height=300,
+        xaxis=dict(title="Observation Timeline (Days)", gridcolor="#1a2330", showgrid=True),
+        yaxis=dict(title="Interstitial Glucose (mg/dL)", range=[30, 420], gridcolor="#1a2330", showgrid=True),
         showlegend=False,
     )
     return fig
 
 
-def _make_progression_chart(probs: Dict[str, List[float]], years: List[int], title: str = "5-Year DR Stage Progression Trajectory") -> go.Figure:
+def _make_progression_chart(probs: Dict[str, List[float]], years: List[int], title: str = "5-Year Cumulative DR Stage Progression Forecast") -> go.Figure:
     fig = go.Figure()
     grade_display = [
-        ("No DR", DR_GRADE_COLORS[0]),
-        ("Mild NPDR", DR_GRADE_COLORS[1]),
-        ("Moderate NPDR", DR_GRADE_COLORS[2]),
-        ("Severe NPDR", DR_GRADE_COLORS[3]),
-        ("Proliferative DR", DR_GRADE_COLORS[4]),
+        ("No Apparent DR (Grade 0)", DR_GRADE_COLORS[0]),
+        ("Mild Non-Proliferative DR (Grade 1)", DR_GRADE_COLORS[1]),
+        ("Moderate Non-Proliferative DR (Grade 2)", DR_GRADE_COLORS[2]),
+        ("Severe Non-Proliferative DR (Grade 3)", DR_GRADE_COLORS[3]),
+        ("Proliferative Diabetic Retinopathy (Grade 4)", DR_GRADE_COLORS[4]),
     ]
     for label, color in grade_display:
         if label in probs:
@@ -498,24 +458,24 @@ def _make_progression_chart(probs: Dict[str, List[float]], years: List[int], tit
                     stackgroup="one",
                     name=label,
                     line=dict(width=0.75, color=color),
-                    fillcolor=color + "88",
+                    fillcolor=color + "55",
                     hovertemplate=f"<b>{label}</b>: %{{y:.1%}}<extra></extra>",
                 )
             )
 
     fig.update_layout(
         **_PLOTLY_LAYOUT_DEFAULTS,
-        height=330,
-        title=dict(text=title, font=dict(size=14, color="#e2e8f0")),
-        xaxis=dict(title="Forecast Horizon (Years)", dtick=1, gridcolor="#1e293b"),
-        yaxis=dict(title="Cumulative Probability", range=[0, 1.05], tickformat=".0%", gridcolor="#1e293b"),
+        height=310,
+        title=dict(text=title, font=dict(size=13, color="#f1f5f9")),
+        xaxis=dict(title="Forecast Horizon (Years)", dtick=1, gridcolor="#1a2330"),
+        yaxis=dict(title="Cumulative Probability", range=[0, 1.05], tickformat=".0%", gridcolor="#1a2330"),
         legend=dict(
             orientation="h",
             yanchor="bottom",
-            y=-0.32,
+            y=-0.38,
             xanchor="center",
             x=0.5,
-            font=dict(size=11, color="#cbd5e1"),
+            font=dict(size=10, color="#94a3b8"),
         ),
     )
     return fig
@@ -530,11 +490,11 @@ def _generate_html_report(
     rec: Dict[str, Any],
 ) -> str:
     grade_labels = {
-        0: "No Diabetic Retinopathy (Grade 0)",
-        1: "Mild Non-Proliferative DR (Grade 1)",
-        2: "Moderate Non-Proliferative DR (Grade 2)",
-        3: "Severe Non-Proliferative DR (Grade 3)",
-        4: "Proliferative Diabetic Retinopathy (Grade 4)",
+        0: "No Apparent Diabetic Retinopathy (ICDR Grade 0)",
+        1: "Mild Non-Proliferative Diabetic Retinopathy (ICDR Grade 1)",
+        2: "Moderate Non-Proliferative Diabetic Retinopathy (ICDR Grade 2)",
+        3: "Severe Non-Proliferative Diabetic Retinopathy (ICDR Grade 3)",
+        4: "Proliferative Diabetic Retinopathy (ICDR Grade 4)",
     }
     pid = patient.get("patient_id", "DEMO-001")
     pname = patient.get("name", pid)
@@ -566,81 +526,81 @@ def _generate_html_report(
 <meta charset="utf-8">
 <title>Clinical Summary - {pname}</title>
 <style>
-    body {{ font-family: 'Segoe UI', Arial, sans-serif; margin: 30px 45px; color: #1e293b; background: #fff; line-height: 1.5; }}
-    .header {{ border-bottom: 3px solid #2563eb; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }}
-    .header h1 {{ margin: 0; color: #0f172a; font-size: 22px; }}
-    .header p {{ margin: 3px 0 0 0; color: #64748b; font-size: 13px; }}
-    .badge {{ display: inline-block; padding: 3px 10px; border-radius: 4px; font-weight: bold; font-size: 12px; }}
-    .badge-high {{ background: #fee2e2; color: #b91c1c; }}
-    .badge-mod {{ background: #fef3c7; color: #b45309; }}
-    .badge-low {{ background: #dcfce7; color: #15803d; }}
-    .section {{ margin-bottom: 20px; }}
-    .section-title {{ font-size: 15px; font-weight: 700; color: #1e40af; border-left: 4px solid #2563eb; padding-left: 8px; margin-bottom: 10px; }}
-    table {{ width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 13px; }}
-    th, td {{ padding: 7px 12px; text-align: left; border: 1px solid #e2e8f0; }}
-    th {{ background: #f8fafc; color: #475569; width: 30%; }}
-    .rec-box {{ background: #f0fdf4; border: 1px solid #86efac; border-radius: 6px; padding: 12px 16px; margin-top: 8px; }}
-    .footer {{ margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 10px; font-size: 11px; color: #94a3b8; text-align: center; }}
+    body {{ font-family: 'Segoe UI', Arial, sans-serif; margin: 30px 45px; color: #1e293b; background: #ffffff; line-height: 1.5; }}
+    .header {{ border-bottom: 2px solid #1e3a8a; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }}
+    .header h1 {{ margin: 0; color: #0f172a; font-size: 20px; font-weight: 700; }}
+    .header p {{ margin: 3px 0 0 0; color: #475569; font-size: 12px; }}
+    .badge {{ display: inline-block; padding: 3px 8px; border-radius: 3px; font-weight: bold; font-size: 11px; }}
+    .badge-high {{ background: #fee2e2; color: #991b1b; }}
+    .badge-mod {{ background: #fef3c7; color: #92400e; }}
+    .badge-low {{ background: #dcfce7; color: #166534; }}
+    .section {{ margin-bottom: 18px; }}
+    .section-title {{ font-size: 13px; font-weight: 700; color: #1e3a8a; border-left: 3px solid #1e3a8a; padding-left: 8px; margin-bottom: 8px; text-transform: uppercase; }}
+    table {{ width: 100%; border-collapse: collapse; margin-top: 4px; font-size: 12px; }}
+    th, td {{ padding: 6px 10px; text-align: left; border: 1px solid #cbd5e1; }}
+    th {{ background: #f1f5f9; color: #334155; width: 28%; font-weight: 600; }}
+    .rec-box {{ background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; padding: 12px 14px; margin-top: 6px; }}
+    .footer {{ margin-top: 26px; border-top: 1px solid #e2e8f0; padding-top: 8px; font-size: 11px; color: #64748b; text-align: center; }}
     @media print {{ body {{ margin: 15px; }} .no-print {{ display: none; }} }}
 </style>
 </head>
 <body>
     <div class="header">
         <div>
-            <h1>🏥 Happiest Health — Digital Twin Clinical Report</h1>
-            <p>Diabetic Retinopathy Risk Assessment &amp; 5-Year Progression Simulation</p>
+            <h1>Happiest Health Clinical Decision Support — Patient Record</h1>
+            <p>Diabetic Retinopathy Digital Twin Multi-Factor Progression Assessment</p>
         </div>
         <div style="text-align: right;">
-            <p><b>Patient ID:</b> {pid}</p>
-            <p><b>Date:</b> {datetime.now().strftime('%d %B %Y')}</p>
+            <p><b>Patient Identifier:</b> {pid}</p>
+            <p><b>Evaluation Date:</b> {datetime.now().strftime('%d %B %Y')}</p>
         </div>
     </div>
 
     <div class="section">
-        <div class="section-title">1. Patient Profile &amp; Clinical Biomarkers</div>
+        <div class="section-title">1. Patient Profile and Clinical Biomarkers</div>
         <table>
-            <tr><th>Patient Name</th><td>{pname}</td><th>Age / Gender</th><td>{age} yrs / {gender}</td></tr>
+            <tr><th>Patient Name</th><td>{pname}</td><th>Age / Biological Sex</th><td>{age} years / {gender}</td></tr>
             <tr><th>Diabetes Duration</th><td>{duration} years</td><th>Glycated Hemoglobin (HbA1c)</th><td>{hba1c}%</td></tr>
-            <tr><th>Fasting Glucose</th><td>{glucose} mg/dL</td><th>Blood Pressure</th><td>{sbp} / {dbp} mmHg</td></tr>
-            <tr><th>BMI</th><td>{bmi} kg/m²</td><th>Kidney Function (eGFR)</th><td>{egfr} mL/min/1.73m²</td></tr>
-            <tr><th>Medication Adherence</th><td>{adherence}%</td><th>Smoking Status</th><td>{smoking}</td></tr>
+            <tr><th>Fasting Plasma Glucose</th><td>{glucose} mg/dL</td><th>Blood Pressure</th><td>{sbp} / {dbp} mmHg</td></tr>
+            <tr><th>Body Mass Index (BMI)</th><td>{bmi} kg/m²</td><th>Estimated GFR (Renal)</th><td>{egfr} mL/min/1.73m²</td></tr>
+            <tr><th>Medication Adherence</th><td>{adherence}%</td><th>Smoking History</th><td>{smoking}</td></tr>
         </table>
     </div>
 
     <div class="section">
-        <div class="section-title">2. AI Fundus Retinal Evaluation</div>
+        <div class="section-title">2. Retinal Fundus AI Evaluation</div>
         <table>
-            <tr><th>Detected Retinopathy Grade</th><td><b>{grade_labels.get(dr_grade, 'Grade ' + str(dr_grade))}</b></td></tr>
-            <tr><th>Model Confidence</th><td>{confidence:.1%} (Pretrained EfficientNet-B3 Backbone)</td></tr>
-            <tr><th>Explainability Method</th><td>GradCAM visual attention overlay highlighting microvascular lesions</td></tr>
+            <tr><th>Retinopathy Classification</th><td><b>{grade_labels.get(dr_grade, 'Grade ' + str(dr_grade))}</b></td></tr>
+            <tr><th>Posterior Probability</th><td>{confidence:.1%} (EfficientNet-B3 Convolutional Backbone)</td></tr>
+            <tr><th>Explainability Method</th><td>Gradient-weighted Class Activation Mapping (Grad-CAM)</td></tr>
         </table>
     </div>
 
     <div class="section">
-        <div class="section-title">3. Digital Twin Risk Stratification &amp; Progression Forecast</div>
+        <div class="section-title">3. Digital Twin Progression Modeling</div>
         <table>
-            <tr><th>Composite Progression Risk Score</th><td><b>{score:.1f} / 100</b> ({category} Risk)</td></tr>
-            <tr><th>5-Year Progression Probability</th><td>{prog.get('probability_of_progression', 0):.1%} chance of worsening within 5 years</td></tr>
-            <tr><th>Projected Worst-Case Stage (95th %ile)</th><td>Grade {prog.get('worst_case_grade', dr_grade)}</td></tr>
+            <tr><th>Composite Progression Score</th><td><b>{score:.1f} / 100</b> ({category} Risk Cohort)</td></tr>
+            <tr><th>5-Year Progression Probability</th><td>{prog.get('probability_of_progression', 0):.1%} probability of grade worsening within 60 months</td></tr>
+            <tr><th>95th Percentile Worst-Case Stage</th><td>Grade {prog.get('worst_case_grade', dr_grade)}</td></tr>
         </table>
     </div>
 
     <div class="section">
-        <div class="section-title">4. Clinical Screening &amp; Action Plan</div>
+        <div class="section-title">4. Clinical Surveillance and Management Protocol</div>
         <div class="rec-box">
-            <p style="margin: 0 0 6px 0;"><b>Recommended Screening Interval:</b> Every {interval} months</p>
-            <p style="margin: 0 0 6px 0;"><b>Referral Pathway:</b> {referral}</p>
-            <p style="margin: 0 0 6px 0;"><b>Urgency Level:</b> <span class="badge {badge_class}">{urgency}</span></p>
-            <p style="margin: 10px 0 4px 0;"><b>Lifestyle &amp; Management Recommendations:</b></p>
+            <p style="margin: 0 0 4px 0;"><b>Recommended Surveillance Cycle:</b> Every {interval} months</p>
+            <p style="margin: 0 0 4px 0;"><b>Referral Pathway:</b> {referral}</p>
+            <p style="margin: 0 0 4px 0;"><b>Clinical Triage Urgency:</b> <span class="badge {badge_class}">{urgency}</span></p>
+            <p style="margin: 8px 0 4px 0;"><b>Prescribed Lifestyle and Pharmacological Directives:</b></p>
             <ul style="margin: 0; padding-left: 20px;">
-                {lifestyle_items if lifestyle_items else '<li>Maintain optimal glycemic and blood pressure control.</li>'}
+                {lifestyle_items if lifestyle_items else '<li>Maintain rigorous glycemic control (HbA1c < 7.0%) and target BP < 130/80 mmHg.</li>'}
             </ul>
         </div>
     </div>
 
     <div class="footer">
-        <p>This report is generated by the AI-powered Diabetic Retinopathy Digital Twin Proof-of-Concept for research and clinical decision-support demonstration.<br>
-        Not for standalone diagnostic use without certified ophthalmologist validation.</p>
+        <p>This document is generated by the Diabetic Retinopathy Digital Twin Proof-of-Concept for research and clinical decision-support demonstration.<br>
+        Standard clinical oversight by a certified ophthalmologist or retinal specialist is required before intervention execution.</p>
     </div>
 </body>
 </html>"""
@@ -650,12 +610,12 @@ def _generate_html_report(
 def main() -> None:
     st.markdown(
         """
-        <div class="hero-container">
-            <div class="hero-pill">🟢 Digital Twin Engine Active • Happiest Health CRP 2026</div>
-            <h1 class="hero-title">Diabetic Retinopathy Digital Twin</h1>
-            <p class="hero-desc">
-                Multi-modal patient-specific digital twin integrating fundus retinal imaging, continuous glucose monitoring (CGM),
-                and longitudinal EHR biomarkers to forecast 5-year microvascular progression and personalize screening intervals.
+        <div class="clinical-header">
+            <div class="system-badge">CLINICAL DECISION SUPPORT SYSTEM (CDSS) | VERIFICATION PROTOTYPE</div>
+            <h1 class="clinical-title">Diabetic Retinopathy Digital Twin</h1>
+            <p class="clinical-desc">
+                Multimodal patient-specific digital twin integrating fundus retinal photography, continuous glucose monitoring (CGM),
+                and longitudinal EHR biomarkers to forecast 5-year microvascular progression and determine risk-stratified surveillance cycles.
             </p>
         </div>
         """,
@@ -663,48 +623,48 @@ def main() -> None:
     )
 
     with st.sidebar:
-        st.markdown("### 🎛️ Patient Archetypes")
+        st.markdown("### Cohort Archetypes")
         preset_choice = st.selectbox(
-            "Select Clinical Preset",
+            "Select Patient Profile",
             [
-                "Custom Patient (Manual Inputs)",
-                "🌟 Case A: Controlled / Low Risk (Grade 0)",
-                "⚠️ Case B: Moderate NPDR with Fluctuations (Grade 2)",
-                "🚨 Case C: Severe Proliferative / High Risk (Grade 4)",
+                "Manual Patient Entry",
+                "Cohort Archetype A: Controlled Glycemia (Grade 0)",
+                "Cohort Archetype B: Moderate NPDR with Glycemic Lability (Grade 2)",
+                "Cohort Archetype C: High-Risk Proliferative DR (Grade 4)",
             ],
             index=2,
-            help="Pre-populate parameters with verified clinical archetypes or customize manually.",
+            help="Select verified reference cohorts or input custom patient parameters.",
         )
 
         st.markdown("---")
-        st.markdown("### 👁️ Retinal Fundus Source")
+        st.markdown("### Retinal Image Source")
         fundus_source = st.radio(
-            "Image Input Mode",
+            "Fundus Examination Mode",
             [
-                "🖼️ Built-in: Moderate NPDR (Grade 2)",
-                "🖼️ Built-in: Normal Retina (Grade 0)",
-                "🖼️ Built-in: Proliferative DR (Grade 4)",
-                "📁 Upload Custom Fundus Image",
+                "Grade 2: Moderate NPDR",
+                "Grade 0: Normal Fundus",
+                "Grade 4: Proliferative DR",
+                "Upload Custom Retinal Scan",
             ],
-            index=0 if "Case B" in preset_choice else (1 if "Case A" in preset_choice else 2),
+            index=0 if "Archetype B" in preset_choice else (1 if "Archetype A" in preset_choice else 2),
         )
 
         uploaded_file = None
-        if fundus_source == "📁 Upload Custom Fundus Image":
+        if fundus_source == "Upload Custom Retinal Scan":
             uploaded_file = st.file_uploader(
-                "Upload Retinal Fundus Image",
+                "Upload Fundus Photograph",
                 type=["jpg", "jpeg", "png"],
-                help="Upload a retinal fundus photograph (Macula/Disc centered).",
+                help="Upload 45-degree or 60-degree fundus photograph (Macula/Disc centered).",
             )
 
         st.markdown("---")
-        st.markdown("### 📋 Clinical Biomarkers")
+        st.markdown("### Patient Demographics & Biomarkers")
 
-        if "Case A" in preset_choice:
+        if "Archetype A" in preset_choice:
             def_name, def_age, def_gen, def_dur = "Aarav Sharma", 48, "M", 4
             def_a1c, def_glu, def_sbp, def_dbp = 6.6, 115, 122, 78
             def_bmi, def_egfr, def_adh, def_smk = 24.2, 95, 90, "Never"
-        elif "Case C" in preset_choice:
+        elif "Archetype C" in preset_choice:
             def_name, def_age, def_gen, def_dur = "Rajesh Verma", 64, "M", 18
             def_a1c, def_glu, def_sbp, def_dbp = 11.2, 260, 168, 98
             def_bmi, def_egfr, def_adh, def_smk = 33.5, 42, 45, "Current"
@@ -713,39 +673,39 @@ def main() -> None:
             def_a1c, def_glu, def_sbp, def_dbp = 8.8, 185, 142, 86
             def_bmi, def_egfr, def_adh, def_smk = 28.4, 72, 65, "Former"
 
-        patient_name = st.text_input("Patient ID / Name", value=def_name)
+        patient_name = st.text_input("Patient Identifier", value=def_name)
 
         col_demo1, col_demo2 = st.columns(2)
         with col_demo1:
-            age = st.slider("Age (yrs)", 30, 85, def_age)
+            age = st.slider("Age (years)", 30, 85, def_age)
         with col_demo2:
-            gender = st.selectbox("Gender", ["F", "M"], index=0 if def_gen == "F" else 1)
+            gender = st.selectbox("Biological Sex", ["F", "M"], index=0 if def_gen == "F" else 1)
 
         diabetes_duration = st.slider("Diabetes Duration (years)", 1, 30, def_dur)
-        hba1c = st.slider("HbA1c Glycation (%)", 5.0, 14.0, float(def_a1c), step=0.1)
+        hba1c = st.slider("HbA1c Level (%)", 5.0, 14.0, float(def_a1c), step=0.1)
         fasting_glucose = st.slider("Fasting Blood Glucose (mg/dL)", 70, 350, def_glu)
 
         col_bp1, col_bp2 = st.columns(2)
         with col_bp1:
-            systolic_bp = st.slider("Systolic BP", 90, 200, def_sbp)
+            systolic_bp = st.slider("Systolic BP (mmHg)", 90, 200, def_sbp)
         with col_bp2:
-            diastolic_bp = st.slider("Diastolic BP", 55, 120, def_dbp)
+            diastolic_bp = st.slider("Diastolic BP (mmHg)", 55, 120, def_dbp)
 
         col_bio1, col_bio2 = st.columns(2)
         with col_bio1:
-            bmi = st.slider("BMI", 18.0, 45.0, float(def_bmi), step=0.5)
+            bmi = st.slider("BMI (kg/m²)", 18.0, 45.0, float(def_bmi), step=0.5)
         with col_bio2:
-            egfr = st.slider("eGFR (Renal)", 15, 120, def_egfr)
+            egfr = st.slider("eGFR (mL/min/1.73m²)", 15, 120, def_egfr)
 
         med_adherence = st.slider("Medication Adherence (%)", 0, 100, def_adh)
         smoking = st.selectbox(
-            "Smoking Status",
+            "Smoking History",
             ["Never", "Former", "Current"],
             index=["Never", "Former", "Current"].index(def_smk),
         )
 
         st.markdown("---")
-        run_analysis = st.button("⚡ Run Digital Twin Simulation", use_container_width=True, type="primary")
+        run_analysis = st.button("Execute Digital Twin Analysis", use_container_width=True, type="primary")
 
     patient = generate_patient(patient_name if patient_name else "DEMO-001")
     patient.update(
@@ -773,16 +733,16 @@ def main() -> None:
     dr_grade: int = 0
     grade_confidence: float = 0.88
 
-    if fundus_source == "📁 Upload Custom Fundus Image" and uploaded_file is not None:
+    if fundus_source == "Upload Custom Retinal Scan" and uploaded_file is not None:
         fundus_image = Image.open(uploaded_file).convert("RGB")
-    elif "Grade 0" in fundus_source and os.path.isfile(SAMPLE_FUNDUS_PATHS["Grade 0 (Normal Retina)"]):
-        fundus_image = Image.open(SAMPLE_FUNDUS_PATHS["Grade 0 (Normal Retina)"]).convert("RGB")
+    elif "Grade 0" in fundus_source and os.path.isfile(SAMPLE_FUNDUS_PATHS["Grade 0: Normal Fundus"]):
+        fundus_image = Image.open(SAMPLE_FUNDUS_PATHS["Grade 0: Normal Fundus"]).convert("RGB")
         dr_grade = 0
-    elif "Grade 4" in fundus_source and os.path.isfile(SAMPLE_FUNDUS_PATHS["Grade 4 (Severe Proliferative DR)"]):
-        fundus_image = Image.open(SAMPLE_FUNDUS_PATHS["Grade 4 (Severe Proliferative DR)"]).convert("RGB")
+    elif "Grade 4" in fundus_source and os.path.isfile(SAMPLE_FUNDUS_PATHS["Grade 4: Proliferative DR"]):
+        fundus_image = Image.open(SAMPLE_FUNDUS_PATHS["Grade 4: Proliferative DR"]).convert("RGB")
         dr_grade = 4
-    elif os.path.isfile(SAMPLE_FUNDUS_PATHS["Grade 2 (Moderate NPDR)"]):
-        fundus_image = Image.open(SAMPLE_FUNDUS_PATHS["Grade 2 (Moderate NPDR)"]).convert("RGB")
+    elif os.path.isfile(SAMPLE_FUNDUS_PATHS["Grade 2: Moderate NPDR"]):
+        fundus_image = Image.open(SAMPLE_FUNDUS_PATHS["Grade 2: Moderate NPDR"]).convert("RGB")
         dr_grade = 2
 
     model_loaded = False
@@ -808,7 +768,7 @@ def main() -> None:
             model_loaded = False
 
     if not model_loaded:
-        if fundus_source.startswith("🖼️ Built-in"):
+        if fundus_source.startswith("Grade"):
             if "Grade 0" in fundus_source:
                 dr_grade = 0
                 grade_confidence = 0.94
@@ -862,24 +822,24 @@ def main() -> None:
     with kpi1:
         st.markdown(
             f"""
-            <div class="kpi-card">
-                <div class="kpi-title">Current Retinal State</div>
-                <div class="kpi-value" style="color:{DR_GRADE_COLORS.get(dr_grade, '#38bdf8')};">
+            <div class="kpi-container">
+                <div class="kpi-label">Retinal Classification</div>
+                <div class="kpi-value" style="color:{DR_GRADE_COLORS.get(dr_grade, '#2563eb')};">
                     Grade {dr_grade}
                 </div>
-                <div class="kpi-sub">{DR_GRADE_LABELS.get(dr_grade, 'Unknown')}</div>
+                <div class="kpi-subtext">{DR_GRADE_LABELS.get(dr_grade, 'Unknown')}</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
     with kpi2:
-        risk_col = "#34d399" if risk_score < 25 else ("#fbbf24" if risk_score < 50 else ("#f87171" if risk_score < 75 else "#ef4444"))
+        risk_col = "#16a34a" if risk_score < 25 else ("#d97706" if risk_score < 50 else ("#dc2626" if risk_score < 75 else "#991b1b"))
         st.markdown(
             f"""
-            <div class="kpi-card">
-                <div class="kpi-title">Progression Risk Index</div>
+            <div class="kpi-container">
+                <div class="kpi-label">Composite Progression Risk</div>
                 <div class="kpi-value" style="color:{risk_col};">{risk_score:.1f}%</div>
-                <div class="kpi-sub">{risk_category} Risk Cohort</div>
+                <div class="kpi-subtext">{risk_category} Risk Cohort</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -887,10 +847,10 @@ def main() -> None:
     with kpi3:
         st.markdown(
             f"""
-            <div class="kpi-card">
-                <div class="kpi-title">Glycemic Time-in-Range</div>
+            <div class="kpi-container">
+                <div class="kpi-label">Ambulatory Time-in-Range</div>
                 <div class="kpi-value">{tir_pct:.0f}%</div>
-                <div class="kpi-sub">Target 70–180 mg/dL (7-Day CGM)</div>
+                <div class="kpi-subtext">Consensus Range: 70–180 mg/dL</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -898,10 +858,10 @@ def main() -> None:
     with kpi4:
         st.markdown(
             f"""
-            <div class="kpi-card">
-                <div class="kpi-title">Next Surveillance Cycle</div>
+            <div class="kpi-container">
+                <div class="kpi-label">Surveillance Window</div>
                 <div class="kpi-value">{interval} Months</div>
-                <div class="kpi-sub">{referral} Pathway</div>
+                <div class="kpi-subtext">{referral}</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -909,16 +869,16 @@ def main() -> None:
 
     st.write("")
 
-    tab_command, tab_whatif, tab_arch, tab_report = st.tabs(
+    tab_overview, tab_whatif, tab_arch, tab_report = st.tabs(
         [
-            "📊 Twin Command Center",
-            "🧪 Counterfactual 'What-If' Lab",
-            "🗺️ System Architecture & Methodology",
-            "📑 Clinical Summary & Export",
+            "Overview & Diagnostic Panels",
+            "Counterfactual Scenario Simulator",
+            "System Architecture & Methodology",
+            "Clinical Documentation & Export",
         ]
     )
 
-    with tab_command:
+    with tab_overview:
         top_left, top_right = st.columns(2, gap="large")
         bottom_left, bottom_right = st.columns(2, gap="large")
 
@@ -927,8 +887,8 @@ def main() -> None:
                 """
                 <div class="panel-card">
                     <div class="panel-header">
-                        <h3 class="panel-title">👁️ Fundus Retinal AI Inspection</h3>
-                        <span class="panel-tag">Vision Backbone: EfficientNet-B3</span>
+                        <div class="panel-title">Retinal Fundus Evaluation</div>
+                        <div class="panel-meta">Backbone: EfficientNet-B3</div>
                     </div>
                 """,
                 unsafe_allow_html=True,
@@ -939,20 +899,20 @@ def main() -> None:
                 with img_col1:
                     st.image(fundus_image, caption="Original Fundus", use_container_width=True)
                 with img_col2:
-                    st.image(gradcam_overlay, caption="GradCAM Attention", use_container_width=True)
+                    st.image(gradcam_overlay, caption="GradCAM Feature Attribution", use_container_width=True)
             elif fundus_image is not None:
-                st.image(fundus_image, caption=f"Fundus Scan ({fundus_source})", use_container_width=True)
+                st.image(fundus_image, caption=f"Fundus Examination ({fundus_source})", use_container_width=True)
             else:
-                st.info("No fundus image selected. Using clinical biomarker inference.")
+                st.info("No retinal photograph available. Evaluating via clinical biomarker inference.")
 
             st.markdown(_grade_badge_html(dr_grade), unsafe_allow_html=True)
             _build_confidence_bar(grade_confidence)
 
             st.markdown(
                 """
-                <div style="margin-top:12px; font-size:0.85rem; color:#94a3b8; line-height:1.5;">
-                    <b>Diagnostic Biomarkers Evaluated:</b> Microaneurysms, Blot Hemorrhages, Hard Exudates, Cotton Wool Spots,
-                    and Neovascularization according to the International Clinical Diabetic Retinopathy (ICDR) scale.
+                <div style="margin-top:10px; font-size:0.8rem; color:#64748b; line-height:1.5;">
+                    <b>Diagnostic Biomarkers Evaluated:</b> Microaneurysms, intraretinal blot hemorrhages, hard exudates, cotton wool spots,
+                    and venous beading aligned with the International Clinical Diabetic Retinopathy (ICDR) scale.
                 </div>
                 </div>
                 """,
@@ -964,8 +924,8 @@ def main() -> None:
                 """
                 <div class="panel-card">
                     <div class="panel-header">
-                        <h3 class="panel-title">🎯 Multi-Factor Risk Stratification</h3>
-                        <span class="panel-tag">UKPDS / DCCT Calibrated</span>
+                        <div class="panel-title">Multivariate Progression Risk Stratification</div>
+                        <div class="panel-meta">Calibration: UKPDS / WESDR</div>
                     </div>
                 """,
                 unsafe_allow_html=True,
@@ -989,8 +949,8 @@ def main() -> None:
                 """
                 <div class="panel-card">
                     <div class="panel-header">
-                        <h3 class="panel-title">📱 Wearable Stream — Continuous Glucose Dynamics</h3>
-                        <span class="panel-tag">7-Day Real-Time Stream</span>
+                        <div class="panel-title">Continuous Glucose Monitoring (CGM) Profile</div>
+                        <div class="panel-meta">Ambulatory Glucose Profile (AGP)</div>
                     </div>
                 """,
                 unsafe_allow_html=True,
@@ -1004,7 +964,7 @@ def main() -> None:
             mc1, mc2, mc3 = st.columns(3)
             mc1.metric("Mean Sensor Glucose", f"{wearable_summary.get('avg_glucose', 0):.0f} mg/dL")
             mc2.metric("Time in Range (TIR)", f"{wearable_summary.get('time_in_range_pct', 0):.0f}%")
-            mc3.metric("Glucose CV (Variability)", f"{wearable_summary.get('glucose_variability', 0):.1f}%")
+            mc3.metric("Coefficient of Variation", f"{wearable_summary.get('glucose_variability', 0):.1f}%")
 
             st.markdown("</div>", unsafe_allow_html=True)
 
@@ -1013,8 +973,8 @@ def main() -> None:
                 """
                 <div class="panel-card">
                     <div class="panel-header">
-                        <h3 class="panel-title">🔮 5-Year Stochastic Progression Forecast</h3>
-                        <span class="panel-tag">Markov Chain Monte Carlo</span>
+                        <div class="panel-title">Longitudinal 5-Year Markov Progression Forecast</div>
+                        <div class="panel-meta">State-Transition Simulation</div>
                     </div>
                 """,
                 unsafe_allow_html=True,
@@ -1031,31 +991,31 @@ def main() -> None:
 
             lifestyle = recommendation.get("lifestyle_recommendations", [])
             urgency_class = (
-                "action-emergent"
+                "triage-emergent"
                 if urgency in ["Urgent", "Emergency", "Emergent"]
-                else ("action-priority" if urgency == "Priority" else "action-routine")
+                else ("triage-priority" if urgency == "Priority" else "triage-routine")
             )
 
             rec_html = f"""
-            <div class="rec-container">
-                <div class="rec-title">📋 Evidence-Based Clinical Action Protocol</div>
-                <div class="rec-row">
-                    <span>🗓️ <b>Next Screening Window:</b></span>
-                    <span>Every <b>{interval} Months</b></span>
+            <div class="protocol-box">
+                <div style="font-weight:700; color:#cbd5e1; font-size:0.88rem; margin-bottom:8px;">SURVEILLANCE &amp; CLINICAL ACTION PROTOCOL</div>
+                <div class="protocol-row">
+                    <span class="protocol-key">Surveillance Interval:</span>
+                    <span class="protocol-val">Every {interval} Months</span>
                 </div>
-                <div class="rec-row">
-                    <span>🏥 <b>Specialty Referral:</b></span>
-                    <span>{referral}</span>
+                <div class="protocol-row">
+                    <span class="protocol-key">Specialty Referral:</span>
+                    <span class="protocol-val">{referral}</span>
                 </div>
-                <div class="rec-row">
-                    <span>⚡ <b>Triage Urgency:</b></span>
-                    <span class="action-pill {urgency_class}">{urgency}</span>
+                <div class="protocol-row">
+                    <span class="protocol-key">Clinical Triage Level:</span>
+                    <span class="protocol-val {urgency_class}">{urgency}</span>
                 </div>
             """
             if lifestyle:
-                rec_html += '<div style="margin-top:10px; font-weight:600; color:#93c5fd; font-size:0.88rem;">Key Interventions:</div>'
+                rec_html += '<div style="margin-top:8px; font-weight:600; color:#94a3b8; font-size:0.8rem;">Clinical Management Directives:</div>'
                 for tip in lifestyle:
-                    rec_html += f'<div style="font-size:0.85rem; color:#cbd5e1; margin:3px 0;">• {tip}</div>'
+                    rec_html += f'<div style="font-size:0.8rem; color:#cbd5e1; margin:2px 0;">• {tip}</div>'
             rec_html += "</div>"
             st.markdown(rec_html, unsafe_allow_html=True)
 
@@ -1066,12 +1026,12 @@ def main() -> None:
             """
             <div class="panel-card">
                 <div class="panel-header">
-                    <h3 class="panel-title">🧪 Counterfactual Intervention Simulator</h3>
-                    <span class="panel-tag">Interactive Digital Twin In Silico Trial</span>
+                    <div class="panel-title">Counterfactual Scenario Simulator</div>
+                    <div class="panel-meta">In Silico Intervention Modeling</div>
                 </div>
-                <p style="color:#94a3b8; font-size:0.95rem; line-height:1.6;">
-                    Digital twins enable <b>in silico experimentation</b>. Test hypothetical lifestyle, pharmacological, or glycemic interventions
-                    to observe how targeted risk factor reductions alter the patient's 5-year progression curve and prolong vision preservation.
+                <p style="color:#94a3b8; font-size:0.88rem; line-height:1.5; margin:0;">
+                    Simulate targeted pharmacological and lifestyle interventions to quantify the reduction in 5-year microvascular
+                    progression risk and project safe extensions of the surveillance window.
                 </p>
             </div>
             """,
@@ -1081,14 +1041,14 @@ def main() -> None:
         sim_col1, sim_col2 = st.columns([1, 1], gap="large")
 
         with sim_col1:
-            st.markdown("#### 🎯 Configure Clinical Interventions")
+            st.markdown("##### Intervention Parameters")
             delta_hba1c = st.slider(
-                "Target HbA1c Reduction (absolute % drop)",
+                "Target HbA1c Reduction (absolute % reduction)",
                 0.0,
                 3.5,
                 1.5,
                 step=0.1,
-                help="Projected effect of intensive glycemic therapy (e.g. SGLT2i / GLP-1 RA).",
+                help="Modeled reduction via intensive glycemic control (e.g., SGLT2i / GLP-1 RA therapy).",
             )
             delta_sbp = st.slider(
                 "Target Systolic BP Reduction (mmHg)",
@@ -1096,7 +1056,7 @@ def main() -> None:
                 40,
                 15,
                 step=5,
-                help="Effect of ACEi/ARB anti-hypertensive therapy.",
+                help="Modeled reduction via ACEi/ARB antihypertensive regimen.",
             )
             delta_adh = st.slider(
                 "Medication Adherence Improvement (+%)",
@@ -1104,9 +1064,9 @@ def main() -> None:
                 50,
                 25,
                 step=5,
-                help="Impact of digital health companion & automated reminders.",
+                help="Projected adherence improvement via digital tracking or support programs.",
             )
-            sim_smoking_cessation = st.checkbox("Simulate Smoking Cessation", value=(smoking == "Current"))
+            sim_smoking_cessation = st.checkbox("Smoking Cessation Intervention", value=(smoking == "Current"))
 
             intervened_patient = dict(patient)
             intervened_patient["hba1c"] = max(5.5, hba1c - delta_hba1c)
@@ -1133,7 +1093,7 @@ def main() -> None:
             )
 
         with sim_col2:
-            st.markdown("#### 📊 Comparative Outcome Prediction")
+            st.markdown("##### Comparative Projected Outcomes")
 
             orig_score = risk_result.get("total_score", 0.0)
             new_score = intervened_risk.get("total_score", 0.0)
@@ -1149,14 +1109,14 @@ def main() -> None:
             comp1, comp2, comp3 = st.columns(3)
             with comp1:
                 st.metric(
-                    "Risk Score",
+                    "Progression Risk",
                     f"{new_score:.1f}%",
                     f"{score_diff:+.1f}%",
                     delta_color="inverse",
                 )
             with comp2:
                 st.metric(
-                    "5-Yr Progression",
+                    "5-Year Progression Prob.",
                     f"{new_prob * 100:.1f}%",
                     f"{prob_diff:+.1f}%",
                     delta_color="inverse",
@@ -1164,7 +1124,7 @@ def main() -> None:
             with comp3:
                 int_delta = new_int - orig_int
                 st.metric(
-                    "Screening Interval",
+                    "Surveillance Interval",
                     f"{new_int} Mos",
                     f"{int_delta:+d} Mos" if int_delta != 0 else "Unchanged",
                 )
@@ -1183,8 +1143,8 @@ def main() -> None:
                     y=base_high_risk_prob,
                     mode="lines+markers",
                     name="Current Baseline Trajectory",
-                    line=dict(color="#ef4444", width=2.5, dash="dash"),
-                    marker=dict(size=6),
+                    line=dict(color="#dc2626", width=2, dash="dash"),
+                    marker=dict(size=5),
                 )
             )
             fig_compare.add_trace(
@@ -1192,44 +1152,40 @@ def main() -> None:
                     x=base_years,
                     y=int_high_risk_prob,
                     mode="lines+markers",
-                    name="Intervened Trajectory",
-                    line=dict(color="#10b981", width=3),
-                    marker=dict(size=8),
+                    name="Post-Intervention Trajectory",
+                    line=dict(color="#16a34a", width=2.2),
+                    marker=dict(size=6),
                 )
             )
             fig_compare.update_layout(
                 **_PLOTLY_LAYOUT_DEFAULTS,
-                height=260,
-                title=dict(text="Probability of DR Worsening Over 5 Years", font=dict(size=13, color="#f1f5f9")),
-                xaxis=dict(title="Horizon (Years)", dtick=1, gridcolor="#1e293b"),
-                yaxis=dict(title="Probability of Progression", tickformat=".0%", range=[0, 1.0], gridcolor="#1e293b"),
+                height=250,
+                title=dict(text="Probability of Retinopathy Stage Progression Over 5 Years", font=dict(size=12, color="#f1f5f9")),
+                xaxis=dict(title="Horizon (Years)", dtick=1, gridcolor="#1a2330"),
+                yaxis=dict(title="Progression Probability", tickformat=".0%", range=[0, 1.0], gridcolor="#1a2330"),
                 legend=dict(orientation="h", yanchor="bottom", y=-0.38, xanchor="center", x=0.5),
             )
             st.plotly_chart(fig_compare, use_container_width=True)
 
-            if score_diff < -10:
+            if score_diff < -8:
                 st.success(
-                    f"🎉 **High Clinical Impact:** The modeled interventions lower composite progression risk by **{abs(score_diff):.1f}%** "
-                    f"and extend the safe screening window from **{orig_int}** to **{new_int} months**.",
-                    icon="✅",
+                    f"Clinical Impact: Simulated interventions yield an estimated {abs(score_diff):.1f}% reduction in composite progression risk, "
+                    f"modifying the recommended surveillance interval from {orig_int} to {new_int} months."
                 )
             else:
-                st.info(
-                    "Adjust the intervention sliders on the left to simulate aggressive glycemic or blood pressure management.",
-                    icon="💡",
-                )
+                st.info("Adjust the sliders on the left to evaluate alternative glycemic and hemodynamic intervention targets.")
 
     with tab_arch:
         st.markdown(
             """
             <div class="panel-card">
                 <div class="panel-header">
-                    <h3 class="panel-title">🗺️ Digital Twin Architectural Pipeline</h3>
-                    <span class="panel-tag">Multi-Modal Modular Design</span>
+                    <div class="panel-title">System Architecture and Calibration Methodology</div>
+                    <div class="panel-meta">Multi-Modal Engineering</div>
                 </div>
-                <p style="color:#94a3b8; font-size:0.95rem; line-height:1.6;">
-                    The Diabetic Retinopathy Digital Twin bridges cross-sectional deep learning vision models with continuous physiological time series
-                    and stochastic Markov transition matrices calibrated against landmark epidemiological studies.
+                <p style="color:#94a3b8; font-size:0.88rem; line-height:1.5; margin:0;">
+                    The Diabetic Retinopathy Digital Twin bridges deep learning retinal vision models with ambulatory physiological time series
+                    and stochastic Markov transition matrices calibrated against epidemiological study cohorts.
                 </p>
             </div>
             """,
@@ -1239,7 +1195,7 @@ def main() -> None:
         if os.path.isfile(ARCHITECTURE_DIAGRAM_PATH):
             st.image(
                 ARCHITECTURE_DIAGRAM_PATH,
-                caption="End-to-End Multi-Modal Digital Twin Architecture",
+                caption="Multi-Modal Diabetic Retinopathy Digital Twin Pipeline",
                 use_container_width=True,
             )
 
@@ -1247,26 +1203,26 @@ def main() -> None:
         with arch_col1:
             st.markdown(
                 """
-                #### 🏗️ System Components & Data Flows
-                1. **Multi-Modal Data Ingestion Engine:**
-                   - Retinal fundus imagery (APTOS 2019 / Messidor-2 scales).
-                   - Continuous Glucose Monitor (CGM) streams: 288 readings/day calculating Time-in-Range (TIR) and Glycemic Variability (CV%).
-                   - Longitudinal EHR: HbA1c, BP, lipid profiles, renal function (eGFR), and medication adherence.
+                ##### Pipeline Components & Ingestion
+                1. **Multimodal Ingestion Engine:**
+                   - Fundus retinal photography (APTOS 2019 / Messidor-2 scales).
+                   - Continuous Glucose Monitor (CGM) streams: 288 readings/day computing Time-in-Range (TIR) and Glycemic Coefficient of Variation (CV%).
+                   - Longitudinal EHR: HbA1c, blood pressure, renal function (eGFR), lipid indices, and medication adherence.
                 2. **Deep Learning Vision Classifier:**
-                   - Pretrained EfficientNet-B3 with circle cropping and Ben Graham color constancy preprocessing.
+                   - EfficientNet-B3 backbone with circular cropping and Ben Graham color constancy preprocessing.
                    - Layer-wise Grad-CAM explainability isolating microvascular lesions (microaneurysms, hemorrhages, neovascularization).
                 """
             )
         with arch_col2:
             st.markdown(
                 """
-                #### 📚 Clinical Evidence & Transition Modeling
+                ##### Epidemiological Evidence & Transition Modeling
                 1. **Markov Chain Monte Carlo Engine:**
-                   - State space: Grades 0 to 4 (ICDR classification).
-                   - Annual baseline transition rates derived from **WESDR**, **UKPDS 33/34**, and **CURES** population cohorts.
-                   - Risk multiplier dynamic scaling accelerating or dampening progression rates based on personalized multi-factor scores.
+                   - State space: ICDR Grades 0 through 4.
+                   - Annual baseline transition matrices derived from **WESDR**, **UKPDS 33/34**, and **CURES** population cohorts.
+                   - Dynamic hazard multiplier scaling state transitions based on individual multi-factor risk profiles.
                 2. **Closed-Loop Clinical Recommendation:**
-                   - Dynamic screening intervals (3, 6, 12, or 24 months) minimizing clinic overburden while preventing irreversible visual loss.
+                   - Risk-stratified screening intervals (3, 6, 12, or 24 months) designed to minimize clinical workload while mitigating visual loss.
                 """
             )
 
@@ -1275,12 +1231,12 @@ def main() -> None:
             """
             <div class="panel-card">
                 <div class="panel-header">
-                    <h3 class="panel-title">📑 Comprehensive Clinical Report & Handover</h3>
-                    <span class="panel-tag">HL7 / FHIR Ready Output</span>
+                    <div class="panel-title">Clinical Documentation and Data Export</div>
+                    <div class="panel-meta">FHIR / Standardized Export</div>
                 </div>
-                <p style="color:#94a3b8; font-size:0.95rem; line-height:1.6;">
-                    Download or print a standardized clinical report summarizing the digital twin's findings for patient records,
-                    ophthalmologist referral, or diabetes care team multidisciplinary reviews.
+                <p style="color:#94a3b8; font-size:0.88rem; line-height:1.5; margin:0;">
+                    Generate and export standardized clinical summaries for electronic medical records (EMR), patient handover,
+                    or referral to ophthalmology and retinal specialist services.
                 </p>
             </div>
             """,
@@ -1292,7 +1248,7 @@ def main() -> None:
 
         with dl_col1:
             st.download_button(
-                label="📥 Download Clinical Summary (.txt)",
+                label="Download Clinical Summary (TXT)",
                 data=summary_text,
                 file_name=f"clinical_summary_{pid_str}.txt",
                 mime="text/plain",
@@ -1309,22 +1265,22 @@ def main() -> None:
                 rec=recommendation,
             )
             st.download_button(
-                label="🖨️ Download Printable Medical Report (.html)",
+                label="Export Standard Clinical Report (HTML)",
                 data=html_report,
                 file_name=f"medical_report_{pid_str}.html",
                 mime="text/html",
                 use_container_width=True,
             )
 
-        with st.expander("📄 View Formatted Clinical Handover Text", expanded=True):
+        with st.expander("View Formatted Clinical Handover Text", expanded=True):
             st.code(summary_text, language="text")
 
     st.markdown(
         """
-        <div class="disclaimer-card">
-            <b>Clinical Decision Support Disclaimer:</b> This system is a proof-of-concept research demonstration developed for the
-            Happiest Health CRP Digital Twin Challenge 2026. All patient profiles, wearable streams, and stochastic projections are simulated
-            for evaluation purposes and do not replace certified ophthalmological or endocrinological diagnosis.
+        <div class="disclaimer-box">
+            <b>Clinical Decision Support Disclaimer:</b> This software is a proof-of-concept research demonstration developed for the
+            Happiest Health CRP Digital Twin Challenge 2026. All patient profiles, ambulatory streams, and stochastic projections are simulated
+            for evaluation purposes. Standard diagnostic confirmation by a certified ophthalmologist or medical specialist is required prior to any clinical intervention.
         </div>
         """,
         unsafe_allow_html=True,
